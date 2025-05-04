@@ -1,54 +1,136 @@
+// engine.js dosyasından canvas, ctx ve oyun durumu fonksiyonlarını import ediyoruz
 import { canvas, ctx, getGameState, setGameState } from '../engine.js';
 
-// Menü arkaplan görselini oluşturuyoruz
-const backgroundImage = new Image();
-// Görselin dosya yolunu belirtiyoruz (bu dosya assets/images klasöründe olmalı)
-backgroundImage.src = "../assets/images/menu-background.png";
+// Button sınıfını import ediyoruz (UI butonları için)
+import { Button } from '../ui/button.js';
 
-// Menü sahnesini çizen fonksiyon
-export function drawMenu() {
-  // Eğer görsel yüklenmişse (hazırsa) arkaplan olarak çiziyoruz
-  if (backgroundImage.complete) {
-    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-  } else {
-    // Görsel henüz yüklenmemişse, geçici olarak düz renk arkaplan çiziyoruz
-    ctx.fillStyle = "#3498db";  // mavi renk
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+/**
+ * Menu sınıfı, oyun başladığında görünen giriş menüsünü temsil eder.
+ * - Arkaplan resmi
+ * - Başla butonu
+ * - Tıklama dinleyicisi
+ */
+export class Menu {
+
+  /**
+   * Menu sınıfının kurucu fonksiyonu (constructor)
+   * - Arkaplan resmini yükler
+   * - Butonları oluşturur
+   * - Tıklama olaylarını başlatır
+   */
+  constructor() {
+    // Menü arkaplanı için görsel oluşturuyoruz
+    this.backgroundImage = new Image();
+    this.backgroundImage.src = "../assets/images/menu-background.png";
+
+    // Butonları başlat (Başla butonu vs.)
+    this.initButtons();
+
+    // Tıklama olaylarını dinlemeye başla
+    this.setupEventListeners();
   }
 
-  // Başla butonu sol alt köşeye çiziliyor
-  ctx.fillStyle = "#2ecc71";  // yeşil renk
-  const buttonWidth = 200;
-  const buttonHeight = 60;
-  const buttonX = 50;  // sol kenardan mesafe
-  const buttonY = canvas.height - 50 - buttonHeight;  // alt kenardan mesafe
-  ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+  /**
+   * Menüdeki butonları oluşturur
+   */
+  initButtons() {
+    this.buttons = [
+      new Button(
+        50,                    // Buton X konumu (sol kenardan 50px)
+        canvas.height - 110,   // Buton Y konumu (alt kenardan 50px yukarı)
+        200,                   // Buton genişliği
+        60,                    // Buton yüksekliği
+        "Başla",               // Buton üzerindeki yazı
+        "#2ecc71",             // Buton arkaplan rengi (yeşil)
+        "white",               // Buton yazı rengi
+        () => setGameState("game")  // Butona tıklanınca çalışacak fonksiyon (oyunu başlat)
+      )
+    ];
+  }
 
-  // Butonun üstüne "Başla" yazısı yazılıyor
-  ctx.fillStyle = "white";  // yazı rengi
-  ctx.font = "30px Arial";  // yazı tipi ve boyutu
-  ctx.textAlign = "center";  // yazıyı butonun ortasına hizalıyor
-  ctx.fillText("Başla", buttonX + buttonWidth/2, buttonY + buttonHeight/2 + 10);  // yazının konumu
-}
+  /**
+   * Canvas üzerine tıklama olayını dinlemek için Event Listener ekler
+   * (Kullanıcı butona tıklarsa algılanması için gereklidir)
+   */
+  setupEventListeners() {
+    // Event handler'ı (this.handleClick) sınıfa bağlıyoruz
+    this.clickHandler = this.handleClick.bind(this);
 
-// Canvas üzerine tıklama olayını dinleyen fonksiyon (oyuncu bir yere tıklarsa çalışır)
-canvas.addEventListener("click", (e) => {
-    // Eğer oyun hali "menu" değilse, tıklama işleme alınmaz (başka sahnelerde tıklama geçersiz olur)
+    // Canvas'a tıklama dinleyicisi ekliyoruz
+    canvas.addEventListener("click", this.clickHandler);
+  }
+
+  /**
+   * Menüden çıkarken (örneğin oyun başlayınca) tıklama dinleyicisini kaldırır
+   * Bu, performans ve doğru sahne yönetimi için önemlidir
+   */
+  removeEventListeners() {
+    canvas.removeEventListener("click", this.clickHandler);
+  }
+
+  /**
+   * Canvas tıklama olayını işleyen fonksiyon
+   * @param {MouseEvent} e - Tıklama olayı
+   */
+  handleClick(e) {
+    // Eğer oyun şu an "menu" sahnesinde değilse işlem yapmayız
     if (getGameState() !== "menu") return;
 
-    // Canvas'ın ekran üzerindeki konumunu alıyoruz
+    // Tıklama pozisyonunu hesaplıyoruz
     const rect = canvas.getBoundingClientRect();
-    // Tıklamanın canvas içindeki X koordinatı
     const mouseX = e.clientX - rect.left;
-    // Tıklamanın canvas içindeki Y koordinatı
     const mouseY = e.clientY - rect.top;
 
-    // Tıklamanın başla butonunun koordinatlarına denk gelip gelmediğini kontrol ediyoruz
-    if (mouseX >= canvas.width / 2 - 100 &&  // Butonun sol kenarı
-        mouseX <= canvas.width / 2 + 100 &&  // Butonun sağ kenarı
-        mouseY >= 300 &&                     // Butonun üstü
-        mouseY <= 360) {                     // Butonun altı
-        // Eğer tıklama butonun içindeyse oyun sahnesine geçiyoruz
-        setGameState("game");
+    // Butonlar arasında tıklanan olup olmadığını kontrol ediyoruz
+    for (const button of this.buttons) {
+      if (button.handleClick(mouseX, mouseY)) {
+        // Eğer bir butona tıklandıysa işlem tamam → diğer butonlara bakmaya gerek yok
+        break;
+      }
     }
-});
+  }
+
+  /**
+   * Menü arkaplanını çizer
+   * - Görsel yüklendiyse onu çizer
+   * - Yüklenmediyse geçici mavi arkaplan çizer
+   */
+  drawBackground() {
+    if (this.backgroundImage.complete) {
+      // Arkaplan resmi yüklüyse çiz
+      ctx.drawImage(this.backgroundImage, 0, 0, canvas.width, canvas.height);
+    } else {
+      // Resim henüz yüklenmediyse mavi renk ile doldur
+      ctx.fillStyle = "#3498db";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  /**
+   * Menü sahnesinin tümünü çizer
+   * - Önce arkaplanı
+   * - Sonra tüm butonları
+   */
+  draw() {
+    this.drawBackground();
+
+    // Tüm butonları sırayla çiz
+    for (const button of this.buttons) {
+      button.draw();
+    }
+  }
+}
+
+// Menü sahnesi için global bir Menu objesi oluşturuyoruz
+const gameMenu = new Menu();
+
+/**
+ * Menü sahnesini çizen fonksiyon
+ * (Oyun motoru tarafından her frame çağrılacak)
+ */
+export function drawMenu() {
+  gameMenu.draw();
+}
+
+// Dışarıdan erişmek için Menu örneğini de export ediyoruz
+export { gameMenu };
